@@ -289,7 +289,11 @@ Python 3.12 in an isolated virtual environment. Libraries: pandas 2.3, scikit-le
 
 ### 5.1 Cohort and outcomes
 
-The cohort of 494,862 kidney-alone registrations (Section 3.6) shows 47.4% transplanted, 20.9% still waiting at window end, and 14.1% experiencing the adverse composite (death or too-sick removal). Adverse rate rises with age and differs by policy era (Figure `adverse_rate_breakdown.png`).
+The cohort of 494,862 kidney-alone registrations (Section 3.6) shows 47.4% transplanted, 20.9% still waiting at window end, and 14.1% experiencing the adverse composite (death or too-sick removal). Adverse rate rises with age and differs by policy era.
+
+![Fig 1. Waitlist outcome distribution — 2015+ kidney-alone cohort (n = 494,862).](figures/outcome_distribution.png)
+
+![Fig 2. Adverse-outcome rate by policy era and by age band.](figures/adverse_rate_breakdown.png)
 
 ### 5.2 Classification — who is at risk?
 
@@ -307,15 +311,23 @@ Test-set prevalence 14.1% (PR-AUC baseline). Against the aspirational success ta
 | Brier | ≤ 0.18 | **0.111** | ✓ |
 | Lift@decile | ≥ 2.5 | **2.51×** | ✓ |
 
-The top-decile lift of 2.51× means the model's highest-risk 10% of candidates experience adverse outcomes at ~2.5× the base rate — an operationally useful concentration for prioritizing supportive care or review, even where absolute discrimination is modest. (Figures: `roc_pr_curves.png`, `decile_lift.png`.)
+The top-decile lift of 2.51× means the model's highest-risk 10% of candidates experience adverse outcomes at ~2.5× the base rate — an operationally useful concentration for prioritizing supportive care or review, even where absolute discrimination is modest.
+
+![Fig 3. ROC and Precision–Recall curves: logistic-regression baseline vs. XGBoost.](figures/roc_pr_curves.png)
+
+![Fig 5. Lift by predicted-risk decile (decile 1 = highest risk); top decile ≈ 2.5× base rate.](figures/decile_lift.png)
 
 ### 5.3 Calibration
 
-Isotonic calibration reduced the XGBoost Brier score from **0.212 (raw) to 0.111**, moving it from failing to comfortably within the ≤ 0.18 target. The reliability curve (`calibration.png`) shows the raw model systematically over-predicting risk (a direct consequence of `scale_pos_weight`), with the calibrated curve tracking the diagonal. Rank metrics were unchanged, confirming the calibration was a pure probability-magnitude correction.
+Isotonic calibration reduced the XGBoost Brier score from **0.212 (raw) to 0.111**, moving it from failing to comfortably within the ≤ 0.18 target. The reliability curve shows the raw model systematically over-predicting risk (a direct consequence of `scale_pos_weight`), with the calibrated curve tracking the diagonal. Rank metrics were unchanged, confirming the calibration was a pure probability-magnitude correction.
+
+![Fig 4. Reliability curves. Raw XGBoost over-predicts; isotonic calibration restores the diagonal.](figures/calibration.png)
 
 ### 5.4 Survival — how long until transplant?
 
-The Cox proportional-hazards model achieved a **C-index of 0.629** for time-to-transplant (below the 0.72 target). Among transplanted candidates, **median observed days-to-transplant ranged 211–400 across OPTN regions** — a nearly two-fold geographic spread. Kaplan–Meier curves by policy era (`km_survival.png`) visualize the shift in the "not-yet-transplanted" probability over time.
+The Cox proportional-hazards model achieved a **C-index of 0.629** for time-to-transplant (below the 0.72 target). Among transplanted candidates, **median observed days-to-transplant ranged 211–400 across OPTN regions** — a nearly two-fold geographic spread. Kaplan–Meier curves by policy era visualize the shift in the "not-yet-transplanted" probability over time.
+
+![Fig 6. Kaplan–Meier time-to-transplant by policy era — probability of not-yet-transplanted.](figures/km_survival.png)
 
 ### 5.5 Fairness audit
 
@@ -329,11 +341,15 @@ Overall test AUC 0.726. All audited dimensions stayed within the 0.05 subgroup-A
 | OPTN region | Region 3 = 0.703 | Region 6 = 0.761 | 0.034 | ✓ |
 | Age band | 35–49 = 0.685 | < 35 = 0.719 | 0.042 | ✓ |
 
-Two caveats temper the green checks. First, the largest gaps (blood type A1, older age bands) approach the tolerance and rest on smaller subgroups. Second — and more important — **AUC parity is a statement about ranking within a subgroup, not about equal outcomes across subgroups.** The 211–400-day regional wait-time spread (Section 5.4) is a substantive equity concern that AUC parity does not capture (Section 6). (Figure: `fairness_region_auc.png`.)
+Two caveats temper the green checks. First, the largest gaps (blood type A1, older age bands) approach the tolerance and rest on smaller subgroups. Second — and more important — **AUC parity is a statement about ranking within a subgroup, not about equal outcomes across subgroups.** The 211–400-day regional wait-time spread (Section 5.4) is a substantive equity concern that AUC parity does not capture (Section 6).
+
+![Fig 7. Subgroup AUC by OPTN region against the overall AUC and the −0.05 tolerance band.](figures/fairness_region_auc.png)
 
 ### 5.6 Explainability
 
-The dominant drivers of predicted adverse risk (mean |SHAP|) were, in order: **functional status at listing** (`FUNC_STAT_TCR`, by a wide margin), **policy era** (Acuity Circles), **BMI**, **race/ethnicity**, **OPTN region**, and **blood type** (`shap_importance.png`). The primacy of functional status is clinically coherent — impaired functional status is an established predictor of waitlist mortality — and reassuring in that the top driver is a clinical variable rather than a purely administrative one. Region and policy-era prominence, however, indicate the model is partly learning **system and geography**, which is the crux of the fairness discussion below.
+The dominant drivers of predicted adverse risk (mean |SHAP|) were, in order: **functional status at listing** (`FUNC_STAT_TCR`, by a wide margin), **policy era** (Acuity Circles), **BMI**, **race/ethnicity**, **OPTN region**, and **blood type**. The primacy of functional status is clinically coherent — impaired functional status is an established predictor of waitlist mortality — and reassuring in that the top driver is a clinical variable rather than a purely administrative one. Region and policy-era prominence, however, indicate the model is partly learning **system and geography**, which is the crux of the fairness discussion below.
+
+![Fig 8. Top model drivers by mean |SHAP| — functional status at listing dominates.](figures/shap_importance.png)
 
 ---
 

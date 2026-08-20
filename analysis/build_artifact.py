@@ -13,26 +13,6 @@ def datauri(name):
     b = (FIG / name).read_bytes()
     return "data:image/png;base64," + base64.b64encode(b).decode()
 
-CAPTIONS = [
-    ("outcome_distribution.png", "Fig 1", "Waitlist outcome distribution — 2015+ kidney-alone cohort (n = 494,862)."),
-    ("adverse_rate_breakdown.png", "Fig 2", "Adverse-outcome rate by policy era and by age band."),
-    ("roc_pr_curves.png", "Fig 3", "ROC and Precision–Recall curves: logistic-regression baseline vs. XGBoost."),
-    ("calibration.png", "Fig 4", "Reliability curves. Raw XGBoost systematically over-predicts; isotonic calibration restores the diagonal."),
-    ("decile_lift.png", "Fig 5", "Lift by predicted-risk decile (decile 1 = highest risk). Top decile ≈ 2.5× base rate."),
-    ("km_survival.png", "Fig 6", "Kaplan–Meier time-to-transplant by policy era — probability of not-yet-transplanted."),
-    ("fairness_region_auc.png", "Fig 7", "Subgroup AUC by OPTN region against the overall AUC and the −0.05 tolerance band."),
-    ("shap_importance.png", "Fig 8", "Top model drivers by mean |SHAP| — functional status at listing dominates."),
-]
-
-gallery = ['<section class="figures"><div class="eyebrow">Figures</div>',
-           '<div class="fig-grid">']
-for name, tag, cap in CAPTIONS:
-    gallery.append(
-        f'<figure><img loading="lazy" alt="{cap}" src="{datauri(name)}">'
-        f'<figcaption><span class="figtag">{tag}</span> {cap}</figcaption></figure>')
-gallery.append('</div></section>')
-gallery_html = "\n".join(gallery)
-
 md_text = (BASE / "PAPER.md").read_text()
 body_md = md_text[md_text.find("## Abstract"):]
 html_body = markdown.markdown(
@@ -42,12 +22,21 @@ html_body = markdown.markdown(
 html_body = html_body.replace("✓", '<span class="ok">✓</span>')
 html_body = html_body.replace("✗", '<span class="no">✗</span>')
 
-# inject the figure gallery right before the Discussion section
-marker = "<h2>6. Discussion</h2>"
-if marker in html_body:
-    html_body = html_body.replace(marker, gallery_html + "\n" + marker)
-else:
-    html_body += gallery_html
+# Convert the Markdown-inlined figures (src="figures/NAME.png") into styled,
+# base64-embedded <figure> blocks so the page is self-contained (CSP-safe).
+# The GitHub-rendered PAPER.md uses the same figures/ paths directly.
+def _embed_figure(m):
+    alt, name = m.group(1), m.group(2)
+    tag, _, cap = alt.partition(". ")
+    if not cap:                       # no "Fig N." prefix
+        tag, cap = "", alt
+    return (f'<figure><img alt="{cap}" src="{datauri(name)}">'
+            f'<figcaption><span class="figtag">{tag}</span> {cap}'
+            f'</figcaption></figure>')
+
+html_body = re.sub(
+    r'<p><img alt="([^"]*)" src="figures/([^"]+)"\s*/?></p>',
+    _embed_figure, html_body)
 
 KPIS = [
     ("494,862", "kidney-alone registrations", "2015+ cohort"),
@@ -144,7 +133,8 @@ h1.title{font-size:clamp(28px,4.4vw,44px); line-height:1.12; font-weight:700;
 /* figures */
 .figures{margin:52px 0 8px; padding-top:20px; border-top:1px solid var(--rule-soft)}
 .fig-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px; margin-top:14px}
-figure{margin:0; background:var(--card); border:1px solid var(--rule); border-radius:12px;
+figure{margin:24px auto; max-width:620px; background:var(--card);
+  border:1px solid var(--rule); border-radius:12px;
   overflow:hidden; box-shadow:0 1px 3px var(--shadow)}
 figure img{display:block; width:100%; height:auto; background:#fff}
 figcaption{font-family:var(--sans); font-size:12.5px; color:var(--muted);
