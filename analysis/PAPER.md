@@ -21,6 +21,22 @@
 
 ---
 
+## Plain-Language Summary
+
+**What we did.** We used national records on people waiting for a kidney transplant to build two prediction tools: one that estimates a patient's chance of dying or becoming too sick before a kidney becomes available, and one that estimates how long they will wait.
+
+**Why it matters.** Far more people need a kidney than there are kidneys to give. Many people wait years, and some die waiting. A tool that flags who is most at risk could help care teams focus attention where it is needed most.
+
+**What we found.** Using only information known when a patient joins the list, the model correctly ranks a higher-risk patient above a lower-risk one about **73% of the time**, and its highest-risk 10% of patients have adverse outcomes at about **2.5× the average rate**. After a correction step, the risk percentages it reports are trustworthy (well-calibrated). Predicting *wait time* was harder.
+
+**The catch.** The model performs about equally well for men and women, across races, and across regions — but that hides a real problem: how *long* people wait varies almost two-fold depending on which region they live in. Fair-looking accuracy is not the same as fair access.
+
+**Bottom line.** Waiting-list risk can be predicted moderately well from basic listing information — useful for prioritizing care, but not precise enough to decide who gets an organ, and never a substitute for clinical judgment.
+
+**A note on jargon.** Throughout, *waitlist* = the list of people waiting for a transplant; *censored* = a patient still waiting when we stopped observing, so we don't yet know their final outcome; *calibration* = whether a predicted "20% risk" really happens about 20% of the time; *AUC* = how well the model ranks a riskier patient above a safer one (0.5 = coin-flip, 1.0 = perfect); *SHAP* = a method that shows which patient details pushed a prediction up or down.
+
+---
+
 ## 1. Introduction
 
 ### 1.1 Clinical problem
@@ -38,7 +54,7 @@ A third question governs whether any resulting model should be trusted or deploy
 
 ### 1.2 Why the problem is hard
 
-These questions are statistically entangled and methodologically treacherous. First, they are **linked**: a candidate's risk of dying on the list is inseparable from how long they are expected to wait. Second, both outcomes are mediated by an allocation policy that is **neither static nor geographically uniform** — the KAS (2014) [4] and Acuity Circles (2021) [5] reforms changed the mapping from candidate features to outcomes, creating distribution shift within any multi-year cohort. Third, the data are **censored** (many candidates are still waiting at analysis time) and subject to **competing risks** (transplant, death, and removal are mutually exclusive terminating events [8]). Fourth, the outcome is **imbalanced** — adverse events are far less common than transplants — so accuracy and ROC-AUC can mislead. Finally, and most consequentially, a model can achieve strong predictive metrics by **re-learning historical allocation patterns** — including their racial and geographic inequities [9], [10], [11] — rather than clinical risk, which would make it actively harmful if deployed. A credible study must therefore treat leakage, censoring, competing risks, calibration, and fairness not as add-ons but as first-order design constraints.
+This problem is harder than it looks, for five reasons. **(1) The two questions are linked** — how likely someone is to die on the list depends on how long they have to wait. **(2) The rules keep changing.** Two national policy reforms — KAS in 2014 [4] and Acuity Circles in 2021 [5] — changed how kidneys are handed out, so a model trained across those years is aiming at a moving target. **(3) Many outcomes are still unknown.** A large share of patients are still waiting when the data are pulled (statisticians call this *censored*), and transplant, death, and removal compete with one another — a patient who dies can never be transplanted [8]. **(4) The bad event is rare.** Far fewer people have a bad outcome than get transplanted, so plain "accuracy" looks deceptively good. **(5) The biggest trap:** a model can score well simply by memorizing who *historically* got transplants — including the system's racial and geographic unfairness [9], [10], [11] — instead of learning real medical risk. For these reasons we treat data leakage, censoring, competing risks, calibration, and fairness as core design choices rather than afterthoughts.
 
 ### 1.3 Contributions
 
@@ -237,7 +253,7 @@ The Cox proportional-hazards model achieved a **C-index of 0.629** for time-to-t
 
 Overall test AUC 0.726. All audited dimensions stayed within the 0.05 subgroup-AUC tolerance:
 
-| dimension | worst subgroup (AUC) | best subgroup (AUC) | max |gap| | within 0.05? |
+| dimension | worst subgroup (AUC) | best subgroup (AUC) | max gap | within 0.05? |
 |---|---|---|---:|:--:|
 | Sex | M/F ≈ 0.72–0.73 | — | 0.004 | ✓ |
 | Race/ethnicity | Black 0.703 | Hispanic 0.749 | 0.024 | ✓ |

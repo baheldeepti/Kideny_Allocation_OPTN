@@ -113,6 +113,14 @@ figcaption{font-family:var(--sans); font-size:12.5px; color:var(--muted);
 <p><strong>Conclusion.</strong> With only listing-time registry features, waitlist-risk and wait-time are predictable to a clinically suggestive but not decisive degree. The most consequential methodological findings are that (a) a naïve cohort definition silently collapses the waitlist to transplant recipients, (b) class-imbalance weighting must be paired with calibration before probabilities are trusted, and (c) subgroup parity in AUC coexists with large <em>absolute</em> differences in wait time — a fairness signal that ranking metrics alone conceal.</p>
 <p><strong>Keywords:</strong> organ allocation, kidney transplantation, survival analysis, competing risks, calibration, algorithmic fairness, SHAP, OPTN/UNOS, electronic registry.</p>
 <hr />
+<h2>Plain-Language Summary</h2>
+<p><strong>What we did.</strong> We used national records on people waiting for a kidney transplant to build two prediction tools: one that estimates a patient's chance of dying or becoming too sick before a kidney becomes available, and one that estimates how long they will wait.</p>
+<p><strong>Why it matters.</strong> Far more people need a kidney than there are kidneys to give. Many people wait years, and some die waiting. A tool that flags who is most at risk could help care teams focus attention where it is needed most.</p>
+<p><strong>What we found.</strong> Using only information known when a patient joins the list, the model correctly ranks a higher-risk patient above a lower-risk one about <strong>73% of the time</strong>, and its highest-risk 10% of patients have adverse outcomes at about <strong>2.5× the average rate</strong>. After a correction step, the risk percentages it reports are trustworthy (well-calibrated). Predicting <em>wait time</em> was harder.</p>
+<p><strong>The catch.</strong> The model performs about equally well for men and women, across races, and across regions — but that hides a real problem: how <em>long</em> people wait varies almost two-fold depending on which region they live in. Fair-looking accuracy is not the same as fair access.</p>
+<p><strong>Bottom line.</strong> Waiting-list risk can be predicted moderately well from basic listing information — useful for prioritizing care, but not precise enough to decide who gets an organ, and never a substitute for clinical judgment.</p>
+<p><strong>A note on jargon.</strong> Throughout, <em>waitlist</em> = the list of people waiting for a transplant; <em>censored</em> = a patient still waiting when we stopped observing, so we don't yet know their final outcome; <em>calibration</em> = whether a predicted "20% risk" really happens about 20% of the time; <em>AUC</em> = how well the model ranks a riskier patient above a safer one (0.5 = coin-flip, 1.0 = perfect); <em>SHAP</em> = a method that shows which patient details pushed a prediction up or down.</p>
+<hr />
 <h2>1. Introduction</h2>
 <h3>1.1 Clinical problem</h3>
 <p>End-stage kidney disease is treatable by transplantation, which confers a survival and quality-of-life advantage over long-term dialysis. Demand, however, vastly exceeds supply. As of the 2024 SRTR Annual Data Report, more than 90,000 candidates are awaiting a kidney and new listings reached a record in 2024, while fewer than 30,000 kidney transplants are performed annually (27,759 in 2024) [1], [2]. The consequence is a long, hazardous wait: many candidates die or deteriorate to the point of being removed as "too sick to transplant" before an organ is offered. Pretransplant mortality varies widely by geography — on the order of 2.5–7.0 deaths per 100 patient-years across donation service areas [1] — and a reliable <em>median</em> waiting time can no longer be computed because fewer than half of listed candidates are transplanted in a given year; historically it approached four years [1].</p>
@@ -126,7 +134,7 @@ figcaption{font-family:var(--sans); font-size:12.5px; color:var(--muted);
 <li><strong>Is the model fair and explainable?</strong> Does performance hold across demographic and geographic subgroups, and can its drivers be stated in plain clinical language?</li>
 </ol>
 <h3>1.2 Why the problem is hard</h3>
-<p>These questions are statistically entangled and methodologically treacherous. First, they are <strong>linked</strong>: a candidate's risk of dying on the list is inseparable from how long they are expected to wait. Second, both outcomes are mediated by an allocation policy that is <strong>neither static nor geographically uniform</strong> — the KAS (2014) [4] and Acuity Circles (2021) [5] reforms changed the mapping from candidate features to outcomes, creating distribution shift within any multi-year cohort. Third, the data are <strong>censored</strong> (many candidates are still waiting at analysis time) and subject to <strong>competing risks</strong> (transplant, death, and removal are mutually exclusive terminating events [8]). Fourth, the outcome is <strong>imbalanced</strong> — adverse events are far less common than transplants — so accuracy and ROC-AUC can mislead. Finally, and most consequentially, a model can achieve strong predictive metrics by <strong>re-learning historical allocation patterns</strong> — including their racial and geographic inequities [9], [10], [11] — rather than clinical risk, which would make it actively harmful if deployed. A credible study must therefore treat leakage, censoring, competing risks, calibration, and fairness not as add-ons but as first-order design constraints.</p>
+<p>This problem is harder than it looks, for five reasons. <strong>(1) The two questions are linked</strong> — how likely someone is to die on the list depends on how long they have to wait. <strong>(2) The rules keep changing.</strong> Two national policy reforms — KAS in 2014 [4] and Acuity Circles in 2021 [5] — changed how kidneys are handed out, so a model trained across those years is aiming at a moving target. <strong>(3) Many outcomes are still unknown.</strong> A large share of patients are still waiting when the data are pulled (statisticians call this <em>censored</em>), and transplant, death, and removal compete with one another — a patient who dies can never be transplanted [8]. <strong>(4) The bad event is rare.</strong> Far fewer people have a bad outcome than get transplanted, so plain "accuracy" looks deceptively good. <strong>(5) The biggest trap:</strong> a model can score well simply by memorizing who <em>historically</em> got transplants — including the system's racial and geographic unfairness [9], [10], [11] — instead of learning real medical risk. For these reasons we treat data leakage, censoring, competing risks, calibration, and fairness as core design choices rather than afterthoughts.</p>
 <h3>1.3 Contributions</h3>
 <ul>
 <li>A <strong>carefully defined kidney-alone waitlist cohort</strong> from the OPTN <code>KIDPAN</code> Standard Transplant Analysis and Research (STAR) file, with the cohort-construction pitfalls documented (Section 3.3) so they are not silently repeated.</li>
@@ -401,13 +409,54 @@ figcaption{font-family:var(--sans); font-size:12.5px; color:var(--muted);
 <p>The Cox proportional-hazards model achieved a <strong>C-index of 0.629</strong> for time-to-transplant (below the 0.72 target). Among transplanted candidates, <strong>median observed days-to-transplant ranged 211–400 across OPTN regions</strong> — a nearly two-fold geographic spread. Kaplan–Meier curves by policy era (<code>km_survival.png</code>) visualize the shift in the "not-yet-transplanted" probability over time.</p>
 <h3>5.5 Fairness audit</h3>
 <p>Overall test AUC 0.726. All audited dimensions stayed within the 0.05 subgroup-AUC tolerance:</p>
-<p>| dimension | worst subgroup (AUC) | best subgroup (AUC) | max |gap| | within 0.05? |
-|---|---|---|---:|:--:|
-| Sex | M/F ≈ 0.72–0.73 | — | 0.004 | <span class="ok">✓</span> |
-| Race/ethnicity | Black 0.703 | Hispanic 0.749 | 0.024 | <span class="ok">✓</span> |
-| Blood type | A1 0.683 | O 0.731 | 0.044 | <span class="ok">✓</span> |
-| OPTN region | Region 3 = 0.703 | Region 6 = 0.761 | 0.034 | <span class="ok">✓</span> |
-| Age band | 35–49 = 0.685 | &lt; 35 = 0.719 | 0.042 | <span class="ok">✓</span> |</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>dimension</th>
+<th>worst subgroup (AUC)</th>
+<th>best subgroup (AUC)</th>
+<th style="text-align: right;">max gap</th>
+<th style="text-align: center;">within 0.05?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sex</td>
+<td>M/F ≈ 0.72–0.73</td>
+<td>—</td>
+<td style="text-align: right;">0.004</td>
+<td style="text-align: center;"><span class="ok">✓</span></td>
+</tr>
+<tr>
+<td>Race/ethnicity</td>
+<td>Black 0.703</td>
+<td>Hispanic 0.749</td>
+<td style="text-align: right;">0.024</td>
+<td style="text-align: center;"><span class="ok">✓</span></td>
+</tr>
+<tr>
+<td>Blood type</td>
+<td>A1 0.683</td>
+<td>O 0.731</td>
+<td style="text-align: right;">0.044</td>
+<td style="text-align: center;"><span class="ok">✓</span></td>
+</tr>
+<tr>
+<td>OPTN region</td>
+<td>Region 3 = 0.703</td>
+<td>Region 6 = 0.761</td>
+<td style="text-align: right;">0.034</td>
+<td style="text-align: center;"><span class="ok">✓</span></td>
+</tr>
+<tr>
+<td>Age band</td>
+<td>35–49 = 0.685</td>
+<td>&lt; 35 = 0.719</td>
+<td style="text-align: right;">0.042</td>
+<td style="text-align: center;"><span class="ok">✓</span></td>
+</tr>
+</tbody>
+</table></div>
 <p>Two caveats temper the green checks. First, the largest gaps (blood type A1, older age bands) approach the tolerance and rest on smaller subgroups. Second — and more important — <strong>AUC parity is a statement about ranking within a subgroup, not about equal outcomes across subgroups.</strong> The 211–400-day regional wait-time spread (Section 5.4) is a substantive equity concern that AUC parity does not capture (Section 6). (Figure: <code>fairness_region_auc.png</code>.)</p>
 <h3>5.6 Explainability</h3>
 <p>The dominant drivers of predicted adverse risk (mean |SHAP|) were, in order: <strong>functional status at listing</strong> (<code>FUNC_STAT_TCR</code>, by a wide margin), <strong>policy era</strong> (Acuity Circles), <strong>BMI</strong>, <strong>race/ethnicity</strong>, <strong>OPTN region</strong>, and <strong>blood type</strong> (<code>shap_importance.png</code>). The primacy of functional status is clinically coherent — impaired functional status is an established predictor of waitlist mortality — and reassuring in that the top driver is a clinical variable rather than a purely administrative one. Region and policy-era prominence, however, indicate the model is partly learning <strong>system and geography</strong>, which is the crux of the fairness discussion below.</p>

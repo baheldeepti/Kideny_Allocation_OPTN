@@ -54,8 +54,10 @@ optn/
 │   ├── run_analysis.py              full pipeline → REPORT.md + figures/
 │   ├── build_artifact.py            PAPER.md → paper.html (shareable)
 │   ├── REPORT.md                    technical results log
-│   ├── PAPER.md                     conference paper (IEEE-style)
+│   ├── PAPER.md                     conference paper (IEEE-style + plain-language summary)
+│   ├── PAPER.pdf                    ← print-ready PDF (figures embedded)
 │   ├── paper.html                   rendered paper (self-contained)
+│   ├── make_pdf.py                  PAPER.md/html → PAPER.pdf (headless Chrome)
 │   └── figures/                     8 result figures (PNG)
 │
 └── app/                         Streamlit app (local)

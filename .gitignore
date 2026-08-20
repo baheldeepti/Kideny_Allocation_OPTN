@@ -10,3 +10,6 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+
+# intermediate PDF build file
+analysis/paper_print.html
