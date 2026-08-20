@@ -1,0 +1,12 @@
+# NEVER commit OPTN row-level data (DUA-governed)
+data/
+*.csv
+*.DAT
+*.dat
+*.sas7bdat
+*.parquet
+# python / os cruft
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
