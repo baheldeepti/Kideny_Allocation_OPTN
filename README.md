@@ -6,6 +6,8 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/status-research%20draft-orange)
 
+### 📄 Read the paper → **[analysis/PAPER.pdf](analysis/PAPER.pdf)** · [Markdown](analysis/PAPER.md) · [interactive web version](https://claude.ai/code/artifact/758bb4c3-2633-46b7-aec0-e638b81fd073)
+
 Predictive modeling and analysis of the U.S. kidney transplant **waiting list**:
 who is at risk of dying/being removed before transplant, how long candidates
 wait, and whether the models are fair and explainable. Built on the OPTN
