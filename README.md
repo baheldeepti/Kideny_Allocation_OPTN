@@ -1,5 +1,11 @@
 # OPTN Kidney Waitlist — Risk & Time-to-Transplant
 
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![Streamlit](https://img.shields.io/badge/Streamlit-app-FF4B4B)
+![Models](https://img.shields.io/badge/models-XGBoost%20%7C%20Cox%20PH-6E56CF)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Status](https://img.shields.io/badge/status-research%20draft-orange)
+
 Predictive modeling and analysis of the U.S. kidney transplant **waiting list**:
 who is at risk of dying/being removed before transplant, how long candidates
 wait, and whether the models are fair and explainable. Built on the OPTN
@@ -9,6 +15,27 @@ wait, and whether the models are fair and explainable. Built on the OPTN
 > Agreement. Row-level extracts live under `data/` and must **never** be
 > committed to a public repo or shared outside the team. Only code, aggregate
 > summaries, figures, and trained models are shareable.
+
+## Getting Started
+
+```bash
+# 1) clone
+git clone https://github.com/baheldeepti/Kideny_Allocation_OPTN.git
+cd Kideny_Allocation_OPTN
+
+# 2) create an environment and install deps
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r app/requirements.txt        # macOS + XGBoost: `brew install libomp`
+
+# 3) run the app — models are included, so this works WITHOUT the raw data
+streamlit run app/app.py                    # → http://localhost:8501
+```
+
+The app ships with trained `app/models/`, so it runs immediately after clone.
+To reproduce the models or analysis from scratch you need the OPTN STAR file and
+the extracts under `data/` (not distributed — see **Data governance** above);
+rebuild them with `extraction/build_analytic_extract.py`, then run
+`app/train_and_save.py` and `analysis/run_analysis.py`.
 
 ## Structure
 
