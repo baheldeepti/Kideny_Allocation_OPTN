@@ -50,6 +50,7 @@ optn/
 │   ├── extract_2015_kidney_only/    ← primary cohort (494,862 rows)
 │   ├── extract_2015_ki_kp/          kidney + kidney-pancreas, 2015+
 │   ├── extract_2010_ki_kp/          kidney + kidney-pancreas, 2010+
+│   ├── DATA_DICTIONARY.md           ← every column: definition, role, missingness, codes
 │   └── README.md
 │
 ├── analysis/                    Modeling, evaluation, and the paper

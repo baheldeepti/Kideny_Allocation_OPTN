@@ -1,5 +1,8 @@
-# NEVER commit OPTN row-level data (DUA-governed)
-data/
+# NEVER commit OPTN row-level data (DUA-governed).
+# Ignore everything under data/ EXCEPT the documentation files.
+data/*
+!data/README.md
+!data/DATA_DICTIONARY.md
 *.csv
 *.DAT
 *.dat
