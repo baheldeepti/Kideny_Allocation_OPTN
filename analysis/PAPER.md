@@ -115,7 +115,75 @@ Three properties of the STAR file materially affect correctness and are document
 
 The extract retains 34 analysis variables plus five derived fields (`outcome`, `event_adverse`, `event_transplant`, `censored`, `days_to_event`) and is written as aggregates/CSV without redistribution outside the team, per the DUA.
 
-### 3.4 Outcome definition
+### 3.4 Analytic data dictionary
+
+The `KIDPAN` file carries 475 variables; we retain 34 and derive 5. Each column below is tagged by its **role**: *ID* (linkage key, not modeled), *cohort* (used to define/subset the population), *feature* (a listing-time model input), *outcome* (used to build the label), *leaky* (known only at/after transplant — excluded from models, see §3.7), or *derived*.
+
+| Variable | Definition | Role |
+|---|---|---|
+| `PT_CODE` | Encrypted patient ID; tracks a person across multiple listings | ID |
+| `WL_ID_CODE` | Encrypted waitlist-registration ID | ID / waitlist filter |
+| `TRR_ID_CODE` | Encrypted transplant-event ID | ID (transplant-time) |
+| `DONOR_ID` | Encrypted donor ID | ID (transplant-time) |
+| `WL_ORG` | Organ the candidate is **waitlisted** for (KI, KP, PA, PI) | **cohort key** |
+| `ORGAN` | Organ actually **transplanted** (null until transplant) | leaky |
+| `WLKI` | "Listed for kidney" flag (mostly null in this cohort) | unused |
+| `INIT_DATE` | Date placed on the waiting list | cohort window + time origin |
+| `END_DATE` | Date the registration ended (removal/transplant/death/cutoff) | time-to-event |
+| `REM_CD` | Reason the registration ended (removal code) | **primary outcome source** |
+| `INIT_AGE` | Age (years) at listing | feature (numeric) |
+| `GENDER` | Sex (M/F) | feature (categorical) |
+| `ETHCAT` | Race/ethnicity category code | feature (categorical) |
+| `ABO` | Blood group at registration (O, A, B, AB, subtypes) | feature (categorical) |
+| `INIT_CPRA` | Calculated panel-reactive antibody % at listing (sensitization) | feature (numeric) |
+| `ON_DIALYSIS` | On dialysis at listing (Y/N) | feature (categorical) |
+| `BMI_TCR` | Body-mass index at registration | feature (numeric) |
+| `FUNC_STAT_TCR` | Functional-status code at registration (Karnofsky-style) | feature (categorical) |
+| `INIT_STAT` | Initial medical-urgency status code | feature (categorical) |
+| `REGION` | OPTN region (1–11) | feature (categorical) |
+| `END_CPRA` | CPRA at removal / end of episode | leaky (end-of-episode) |
+| `END_STAT` | Medical-urgency status at removal | leaky (end-of-episode) |
+| `DIALYSIS_DATE` | Dialysis start date | descriptive (not a feature) |
+| `LISTING_CTR_CODE` | Listing-center code | descriptive (not a feature) |
+| `PREV_TX` | Prior-transplant indicator (populated at transplant here) | leaky |
+| `DIAG_KI` | Primary kidney diagnosis code (populated at transplant here) | leaky |
+| `TX_DATE` | Transplant date | leaky |
+| `DON_TY` | Donor type (deceased vs living) | leaky |
+| `PTIME` | Patient survival time (days) | leaky |
+| `PSTATUS` | Patient status (1 = dead, 0 = alive) | leaky |
+| `COMPOSITE_DEATH_DATE` | Best-available death date | leaky |
+| `DAYSWAIT_CHRON` | Total days on the list incl. inactive time | descriptive |
+| `DAYSWAIT_ALLOC` | Days counted toward allocation priority | descriptive |
+| `MULTIORG`, `A2A2B_ELIGIBILITY` | Multi-organ / A2→B eligibility flags (mostly null) | unused |
+| `outcome` | Coarse outcome bucket derived from `REM_CD` (§3.6) | derived (label source) |
+| `event_adverse` | 1 if `died` or `removed_too_sick`, else 0 | derived (**classification target**) |
+| `event_transplant` | 1 if `transplanted`, else 0 | derived (**survival event**) |
+| `censored` | 1 if `still_waiting` at window end | derived (survival censoring) |
+| `days_to_event` | `END_DATE − INIT_DATE` in days | derived (survival duration) |
+
+### 3.5 Data-preparation pipeline (raw → analytic extract)
+
+The full pipeline is implemented in `build_analytic_extract.py` (cohort) and `run_analysis.py` (modeling prep). It proceeds in ten steps:
+
+1. **Attach the schema.** The `.DAT` has no header, so parse the 475 ordered variable names from the sibling `KIDPAN_DATA.htm` dictionary and read the file with `header=None` + those names, under `latin-1` encoding.
+2. **Stream in chunks.** Read the 1.4 GB / 1.3 M-row file in 100 k-row chunks to bound memory; keep only the columns of interest.
+3. **Normalize missingness.** Map the STAR sentinel `"."` to `NA` on read, so null-aware logic behaves.
+4. **Restrict to waitlist registrations.** Keep rows with a registration ID (`WL_ID_CODE` present).
+5. **Subset the cohort.** Keep `WL_ORG == "KI"` (kidney-alone) **and** `INIT_DATE ≥ 2015-01-01`.
+6. **Parse dates & durations.** Parse `INIT_DATE`/`END_DATE`; compute `days_to_event`; null out 59 negative durations (end-before-start data-entry errors).
+7. **Derive the outcome.** Map `REM_CD` to the outcome bucket and the `event_*` / `censored` flags (§3.6).
+8. **Project columns.** Retain the 34 analysis variables + 5 derived fields → analytic extract (**494,862 × 39**), written to CSV with a column manifest and QA summary.
+9. **Leakage screen (modeling).** Drop transplant-time/end-of-episode columns tagged *leaky* above, leaving **11 listing-time features** (§3.7).
+10. **Preprocess for models.** Numeric features: median-impute + standardize. Categorical features: impute an explicit `MISSING` level + one-hot encode (categories with < 50 occurrences grouped).
+
+The cohort funnel:
+
+| Stage | Rows |
+|---|---:|
+| Raw `KIDPAN` registrations | 1,303,788 |
+| After kidney-alone + 2015+ waitlist subset | **494,862** |
+
+### 3.6 Outcome definition
 
 The primary outcome source is the waitlist removal code `REM_CD`, mapped to coarse buckets (full mapping in Appendix A):
 
@@ -143,7 +211,7 @@ Observed outcome distribution (n = 494,862):
 | unknown | 4,815 | 1.0% |
 | **adverse (died + too-sick)** | **69,743** | **14.1%** |
 
-### 3.5 Feature set and leakage control
+### 3.7 Feature set and leakage control
 
 Only variables **knowable at the time of listing** are eligible as features. Critically, a cluster of columns in this file is populated **only at transplant** — their missingness (~53%) equals the non-transplant rate — and using them would leak the outcome. **Excluded as leaky:** `DIAG_KI`, `PREV_TX`, `ORGAN`, `DON_TY`, `PSTATUS`, `PTIME`, `TX_DATE`, `DONOR_ID`, `TRR_ID_CODE`, and all `END_*`, `DAYSWAIT_*`, and `COMPOSITE_DEATH_DATE` fields.
 
@@ -156,7 +224,7 @@ The retained **11 listing-time features**:
 
 `policy_era` is derived from `INIT_DATE`: `AcuityCircles_2021+` if listed on/after 15 March 2021, else `KAS_2015_2021`.
 
-### 3.6 Missingness
+### 3.8 Missingness
 
 Feature missingness is low except for sensitization: `INIT_CPRA` 28.8%, `FUNC_STAT_TCR` 0.8%, `BMI_TCR` 0.3%; the remaining features are effectively complete. Numeric features were median-imputed; categorical features used an explicit `MISSING` level so that "not recorded" is itself a modelable signal rather than silently dropped.
 
@@ -221,7 +289,7 @@ Python 3.12 in an isolated virtual environment. Libraries: pandas 2.3, scikit-le
 
 ### 5.1 Cohort and outcomes
 
-The cohort of 494,862 kidney-alone registrations (Section 3.4) shows 47.4% transplanted, 20.9% still waiting at window end, and 14.1% experiencing the adverse composite (death or too-sick removal). Adverse rate rises with age and differs by policy era (Figure `adverse_rate_breakdown.png`).
+The cohort of 494,862 kidney-alone registrations (Section 3.6) shows 47.4% transplanted, 20.9% still waiting at window end, and 14.1% experiencing the adverse composite (death or too-sick removal). Adverse rate rises with age and differs by policy era (Figure `adverse_rate_breakdown.png`).
 
 ### 5.2 Classification — who is at risk?
 

@@ -16,10 +16,13 @@ PRINT_CSS = """
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .wrap { padding: 0 !important; min-height: 0 !important; }
   .hero { padding-top: 8px !important; }
-  /* keep blocks from splitting awkwardly across pages */
-  figure, .tablewrap, .kpi, h1.title, .figures { break-inside: avoid; }
+  /* keep figures / tiles whole, but let long tables flow across pages */
+  figure, .kpi, h1.title { break-inside: avoid; }
   .body h2, .body h3 { break-after: avoid; }
   .kpis { break-inside: avoid; }
+  .tablewrap, .body table { break-inside: auto; overflow-x: visible; }
+  .body tr { break-inside: avoid; }        /* never split a row */
+  .body thead { display: table-header-group; }  /* repeat header on each page */
   .fig-grid { grid-template-columns: 1fr 1fr; }
   a { color: inherit; }               /* links readable on paper */
 </style>
